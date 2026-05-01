@@ -60,7 +60,15 @@ function injectStyles() {
   position: relative; transition: transform .1s;
 }
 .anima-card:hover { transform: translateY(-1px); }
-.anima-card.sel { border-color: #6c8cff !important; }
+.anima-card.sel { border-color: #6c8cff !important; background: #1e1e40; }
+.anima-card.sel::after {
+  content: "✓";
+  position: absolute; bottom: 0; right: 0; z-index: 3;
+  padding: 1px 5px 2px; background: #6c8cff;
+  border-top-left-radius: 5px;
+  color: #fff; font-size: 11px; font-weight: bold;
+  pointer-events: none;
+}
 .anima-card img {
   width: 100%; aspect-ratio: 1 / 1; object-fit: contain;
   display: block; background: #1a1a2e;
@@ -515,13 +523,14 @@ app.registerExtension({
       }
 
       // Create the embedded browser container
+      const node = this;
       const container = document.createElement("div");
 
       this.addDOMWidget("anima_browser_ui", "div", container, {
         serialize: false,
         getValue:  () => "",
         setValue:  () => {},
-        computeSize: () => [860, 600],
+        computeSize: (w) => [w, Math.max(200, node.size[1] - 58)],
       });
 
       this.size = [860, 660];
