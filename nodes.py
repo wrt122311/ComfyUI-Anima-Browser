@@ -24,7 +24,7 @@ class AnimaBrowser:
         for line in artist_slug.strip().split("\n"):
             slug = line.strip()
             if slug:
-                tags.append(f"artist:{slug}")
+                tags.append(f"artist:{slug},")
         return ("\n".join(tags),)
 
 
