@@ -35,6 +35,15 @@ class AnimaDataManager:
         self._search_cache.clear()
         self._search_cache_order.clear()
 
+    def _normalize_query(self, search):
+        return search.lower().replace(" ", "_") if search else ""
+
+    def _prepare_artists(self, artists):
+        for artist in artists:
+            slug = artist.get("slug", "")
+            artist["_slug_l"] = slug.lower()
+        return artists
+
     def _cache_get_filtered(self, cache_key):
         if cache_key in self._search_cache:
             try:
@@ -44,6 +53,19 @@ class AnimaDataManager:
             self._search_cache_order.append(cache_key)
             return self._search_cache[cache_key]
         return None
+
+    def _cache_find_best_prefix_base(self, query):
+        if not query:
+            return self.artists
+
+        best = None
+        best_len = -1
+        for key in self._search_cache_order:
+            key_query = key[0]
+            if key_query and query.startswith(key_query) and len(key_query) > best_len:
+                best = self._search_cache.get(key)
+                best_len = len(key_query)
+        return best
 
     def _cache_set_filtered(self, cache_key, filtered):
         if cache_key in self._search_cache:
@@ -96,7 +118,7 @@ class AnimaDataManager:
 
         try:
             with open(path, "r", encoding="utf-8") as f:
-                self.artists = json.load(f)
+                self.artists = self._prepare_artists(json.load(f))
             self._clear_search_cache()
             self.loaded = True
             self._progress = {
@@ -147,7 +169,7 @@ class AnimaDataManager:
                 self._progress["current"] += shard.get("count", 0)
 
             artists.sort(key=lambda x: x["postCount"], reverse=True)
-            self.artists = artists
+            self.artists = self._prepare_artists(artists)
             self._clear_search_cache()
 
             with open(self._cache_path("artists.json"), "w", encoding="utf-8") as f:
@@ -175,28 +197,38 @@ class AnimaDataManager:
                 "shardCount": self.shard_count,
             }
 
-        q = search.lower().replace(" ", "_") if search else ""
-        fav_key = tuple(sorted(favs)) if fav_only and favs else ()
-        cache_key = (q, bool(fav_only), fav_key)
+        q = self._normalize_query(search)
+        cache_key = (q,)
 
         filtered = self._cache_get_filtered(cache_key)
         if filtered is None:
-            filtered = self.artists
+            filtered = self._cache_find_best_prefix_base(q) or self.artists
             if q:
-                filtered = [a for a in filtered if q in a["slug"].lower()]
-
-            if fav_only and favs:
-                fav_set = set(favs)
-                filtered = [a for a in filtered if a["slug"] in fav_set]
+                filtered = [a for a in filtered if q in a["_slug_l"]]
 
             self._cache_set_filtered(cache_key, filtered)
+
+        if fav_only and favs:
+            fav_set = set(favs)
+            filtered = [a for a in filtered if a["slug"] in fav_set]
 
         total = len(filtered)
         start = (page - 1) * size
         end = start + size
 
+        page_items = [
+            {
+                "slug": a["slug"],
+                "tag": a["tag"],
+                "imageId": a["imageId"],
+                "imageUrl": a.get("imageUrl"),
+                "postCount": a.get("postCount", 0),
+            }
+            for a in filtered[start:end]
+        ]
+
         return {
-            "artists": filtered[start:end],
+            "artists": page_items,
             "total": total,
             "page": page,
             "size": size,

@@ -46,7 +46,7 @@ function injectStyles() {
 .anima-grid {
   flex: 1; overflow-y: auto; padding: 6px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(520px, 1fr));
   gap: 5px; align-content: start;
   scrollbar-width: thin; scrollbar-color: #444 #1a1a2e;
 }

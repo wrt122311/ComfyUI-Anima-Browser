@@ -1,5 +1,5 @@
 const DEFAULTS = {
-  minCardWidth: 130,
+  minCardWidth: 520,
   cardBodyHeight: 36,
   gap: 5,
   padding: 6,
