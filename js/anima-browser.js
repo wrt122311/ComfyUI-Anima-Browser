@@ -296,30 +296,28 @@ class AnimaNodeUI {
       }
     });
 
-    // scrollbar
+    // scrollbar — controls grid scroll within current page
     this._scrollDragging = false;
+    const doGridScroll = (clientY) => {
+      const r = this.$scrollbar.getBoundingClientRect();
+      const ratio = Math.max(0, Math.min(1, (clientY - r.top) / r.height));
+      this.$grid.scrollTop = ratio * (this.$grid.scrollHeight - this.$grid.clientHeight);
+    };
     this.$thumb.addEventListener("mousedown", (e) => {
       this._scrollDragging = true;
       e.preventDefault();
-      this._scrollTo(e.clientY);
     });
     this.$scrollbar.addEventListener("mousedown", (e) => {
-      if (e.target === this.$thumb) return;
       this._scrollDragging = true;
-      this._scrollTo(e.clientY);
+      doGridScroll(e.clientY);
     });
-    this._onMove = (e) => { if (this._scrollDragging) this._scrollTo(e.clientY); };
+    this._onMove = (e) => { if (this._scrollDragging) doGridScroll(e.clientY); };
     this._onUp   = () => { this._scrollDragging = false; };
     document.addEventListener("mousemove", this._onMove);
     document.addEventListener("mouseup",   this._onUp);
-  }
 
-  _scrollTo(clientY) {
-    const r = this.$scrollbar.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (clientY - r.top) / r.height));
-    this.page = Math.max(1, Math.min(this.totalPages,
-      Math.round(ratio * (this.totalPages - 1)) + 1));
-    this._loadPage();
+    // keep thumb in sync as grid scrolls
+    this.$grid.addEventListener("scroll", () => this._updateThumb(), { passive: true });
   }
 
   // ---- data ---------------------------------------------------
@@ -385,6 +383,7 @@ class AnimaNodeUI {
       this.$next.disabled = this.page >= this.totalPages;
 
       this._render(d.artists);
+      this.$grid.scrollTop = 0;
       this._updateThumb();
     } catch (err) {
       this._showError(`Load error: ${err.message}`);
@@ -435,15 +434,17 @@ class AnimaNodeUI {
   }
 
   _updateThumb() {
-    if (this.totalPages <= 1) {
-      this.$thumb.style.top = "0";
+    const scrollH = this.$grid.scrollHeight;
+    const clientH = this.$grid.clientHeight;
+    if (scrollH <= clientH) {
+      this.$thumb.style.top = "0%";
       this.$thumb.style.height = "100%";
       return;
     }
-    const pct = Math.max(4, 100 / this.totalPages);
-    const ratio = (this.page - 1) / (this.totalPages - 1);
-    this.$thumb.style.top = `${ratio * (100 - pct)}%`;
-    this.$thumb.style.height = `${pct}%`;
+    const thumbPct = Math.max(8, (clientH / scrollH) * 100);
+    const ratio = this.$grid.scrollTop / (scrollH - clientH);
+    this.$thumb.style.height = `${thumbPct}%`;
+    this.$thumb.style.top = `${ratio * (100 - thumbPct)}%`;
   }
 
   _showLoading(msg) {
@@ -515,15 +516,15 @@ app.registerExtension({
 
       // Create the embedded browser container
       const container = document.createElement("div");
-      container.style.cssText = "width:100%;height:100%;";
 
       this.addDOMWidget("anima_browser_ui", "div", container, {
         serialize: false,
         getValue:  () => "",
         setValue:  () => {},
+        computeSize: () => [860, 600],
       });
 
-      this.size = [860, 680];
+      this.size = [860, 660];
 
       if (widget) {
         this._animaUI = new AnimaNodeUI(container, widget);
