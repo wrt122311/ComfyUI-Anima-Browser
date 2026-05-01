@@ -68,7 +68,7 @@ function injectStyles() {
 .anima-card:hover { transform: translateY(-1px); }
 .anima-card.sel { border-color: #6c8cff !important; }
 .anima-card img {
-  width: 100%; height: auto; object-fit: contain;
+  width: 100%; aspect-ratio: 1 / 1; object-fit: contain;
   display: block; background: #1a1a2e;
 }
 .anima-card .card-body { padding: 3px 6px 5px; }
@@ -358,8 +358,8 @@ class AnimaNodeUI {
         const rx = cr.width / (cw || 1);
         const ry = cr.height / (ch || 1);
 
-        const left = cr.left + cr.width / 2 + (this.node.pos[0] + ds.offset[0]) * ds.scale * rx;
-        const top  = cr.top + cr.height / 2 + (this.node.pos[1] + ds.offset[1]) * ds.scale * ry;
+        const left = cr.left + (this.node.pos[0] * ds.scale + ds.offset[0]) * rx;
+        const top  = cr.top  + (this.node.pos[1] * ds.scale + ds.offset[1]) * ry;
         const w    = this.node.size[0] * ds.scale * rx;
         const h    = this.node.size[1] * ds.scale * ry;
 
