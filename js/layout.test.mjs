@@ -3,20 +3,20 @@ import { calculateVisiblePageSize } from "./layout.js";
 
 assert.equal(
   calculateVisiblePageSize(848, 560),
-  1,
-  "large node should show one very large card with 4x sizing"
+  3,
+  "large node should show complete cards with 2x sizing"
 );
 
 assert.equal(
   calculateVisiblePageSize(350, 260),
   1,
-  "small node should still request a valid single large card"
+  "small node should still request a valid single card"
 );
 
 assert.equal(
   calculateVisiblePageSize(2000, 2000),
-  6,
-  "very large view should show multiple enlarged cards"
+  42,
+  "very large view should show multiple cards with 2x sizing"
 );
 
 assert.equal(
