@@ -25,8 +25,38 @@ class AnimaDataManager:
         self._progress = {"current": 0, "total": 0, "status": "idle"}
 
         self._executor = ThreadPoolExecutor(max_workers=4)
+        self._search_cache = {}
+        self._search_cache_order = []
+        self._search_cache_limit = 128
         self._load_manifest()
         self._try_load_cache()
+
+    def _clear_search_cache(self):
+        self._search_cache.clear()
+        self._search_cache_order.clear()
+
+    def _cache_get_filtered(self, cache_key):
+        if cache_key in self._search_cache:
+            try:
+                self._search_cache_order.remove(cache_key)
+            except ValueError:
+                pass
+            self._search_cache_order.append(cache_key)
+            return self._search_cache[cache_key]
+        return None
+
+    def _cache_set_filtered(self, cache_key, filtered):
+        if cache_key in self._search_cache:
+            try:
+                self._search_cache_order.remove(cache_key)
+            except ValueError:
+                pass
+        self._search_cache[cache_key] = filtered
+        self._search_cache_order.append(cache_key)
+
+        while len(self._search_cache_order) > self._search_cache_limit:
+            old_key = self._search_cache_order.pop(0)
+            self._search_cache.pop(old_key, None)
 
     # ---------------------------------------------------------------
     # paths
@@ -67,6 +97,7 @@ class AnimaDataManager:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 self.artists = json.load(f)
+            self._clear_search_cache()
             self.loaded = True
             self._progress = {
                 "current": len(self.artists),
@@ -117,6 +148,7 @@ class AnimaDataManager:
 
             artists.sort(key=lambda x: x["postCount"], reverse=True)
             self.artists = artists
+            self._clear_search_cache()
 
             with open(self._cache_path("artists.json"), "w", encoding="utf-8") as f:
                 json.dump(artists, f, ensure_ascii=False)
@@ -143,15 +175,21 @@ class AnimaDataManager:
                 "shardCount": self.shard_count,
             }
 
-        filtered = self.artists
+        q = search.lower().replace(" ", "_") if search else ""
+        fav_key = tuple(sorted(favs)) if fav_only and favs else ()
+        cache_key = (q, bool(fav_only), fav_key)
 
-        if search:
-            q = search.lower().replace(" ", "_")
-            filtered = [a for a in filtered if q in a["slug"].lower()]
+        filtered = self._cache_get_filtered(cache_key)
+        if filtered is None:
+            filtered = self.artists
+            if q:
+                filtered = [a for a in filtered if q in a["slug"].lower()]
 
-        if fav_only and favs:
-            fav_set = set(favs)
-            filtered = [a for a in filtered if a["slug"] in fav_set]
+            if fav_only and favs:
+                fav_set = set(favs)
+                filtered = [a for a in filtered if a["slug"] in fav_set]
+
+            self._cache_set_filtered(cache_key, filtered)
 
         total = len(filtered)
         start = (page - 1) * size

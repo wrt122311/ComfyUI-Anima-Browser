@@ -176,7 +176,7 @@ function apiA(page, size, search, favOnly, favs) {
   p.set("size", size);
   if (search) p.set("search", search);
   if (favOnly) p.set("favOnly", "1");
-  p.set("favs", JSON.stringify(favs));
+  if (favOnly && favs?.length) p.set("favs", JSON.stringify(favs));
   return `/anima-browser/artists?${p}`;
 }
 function apiImg(id) {
@@ -197,6 +197,8 @@ class AnimaNodeUI {
     this.favOnly = false;
     this.totalPages = 1;
     this.ready = false;
+    this._requestSeq = 0;
+    this._abortController = null;
 
     this.favs = this._loadFavs();
     this.selected = widget.value
@@ -416,6 +418,11 @@ class AnimaNodeUI {
   // ---- page loading -------------------------------------------
   async _loadPage() {
     if (!this.ready) return;
+    this._requestSeq += 1;
+    const requestSeq = this._requestSeq;
+    if (this._abortController) this._abortController.abort();
+    this._abortController = new AbortController();
+
     this._syncPageSize();
     this.$grid.innerHTML = `<div class="anima-state">Loading...</div>`;
     this.$prev.disabled = true;
@@ -423,8 +430,10 @@ class AnimaNodeUI {
 
     try {
       const url = apiA(this.page, this.pageSize, this.searchQuery, this.favOnly, this.favs);
-      const r = await fetch(url);
+      const r = await fetch(url, { signal: this._abortController.signal });
+      if (requestSeq !== this._requestSeq) return;
       const d = await r.json();
+      if (requestSeq !== this._requestSeq) return;
 
       if (!d.loaded) {
         this.$grid.innerHTML = `<div class="anima-state">Data loading... please wait</div>`;
@@ -442,7 +451,12 @@ class AnimaNodeUI {
       this.$grid.scrollTop = 0;
       this._updateThumb();
     } catch (err) {
+      if (err?.name === "AbortError") return;
       this._showError(`Load error: ${err.message}`);
+    } finally {
+      if (requestSeq === this._requestSeq) {
+        this._abortController = null;
+      }
     }
   }
 
@@ -600,6 +614,7 @@ class AnimaNodeUI {
 
   // ---- cleanup ------------------------------------------------
   destroy() {
+    if (this._abortController) this._abortController.abort();
     clearTimeout(this._layoutTimer);
     if (this._layoutWatch) window.clearInterval(this._layoutWatch);
     if (this._resizeObserver) this._resizeObserver.disconnect();
