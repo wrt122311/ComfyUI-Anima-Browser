@@ -1,0 +1,599 @@
+import { app } from "../../scripts/app.js";
+
+// ---------------------------------------------------------------
+// CSS (injected once)
+// ---------------------------------------------------------------
+const STYLE_ID = "anima-node-styles";
+function injectStyles() {
+  if (document.getElementById(STYLE_ID)) return;
+  const s = document.createElement("style");
+  s.id = STYLE_ID;
+  s.textContent = `
+.anima-node-overlay {
+  position: fixed; z-index: 50; pointer-events: none;
+  overflow: hidden; font-family: sans-serif;
+  box-sizing: border-box;
+}
+.anima-node-inner {
+  width: 100%; height: 100%; display: flex; flex-direction: column;
+  pointer-events: auto; background: #1a1a2e;
+  border: 1px solid #444; border-radius: 4px;
+  box-sizing: border-box; overflow: hidden;
+}
+/* header */
+.anima-hdr {
+  display: flex; gap: 5px; align-items: center;
+  padding: 5px 6px; flex-shrink: 0;
+  background: #222236; border-bottom: 1px solid #333;
+}
+.anima-hdr input {
+  flex:1; min-width: 0; padding: 5px 10px;
+  background: #2a2a3e; border:1px solid #444; border-radius: 5px;
+  color: #ccc; font-size: 12px; outline: none;
+}
+.anima-hdr input:focus { border-color: #6c8cff; }
+.anima-hdr button {
+  padding: 4px 10px; background: #2a2a3e;
+  border: 1px solid #444; border-radius: 4px;
+  color: #ccc; cursor: pointer; font-size: 12px;
+  white-space: nowrap; line-height: 1.2;
+}
+.anima-hdr button:hover { background: #3a3a4e; }
+.anima-hdr button.active { background: #4a5a8e; border-color: #6c8cff; }
+.anima-hdr .anima-total {
+  color: #888; font-size: 11px; white-space: nowrap;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis;
+}
+/* main */
+.anima-main {
+  display: flex; flex: 1; overflow: hidden; min-height: 0;
+}
+.anima-grid {
+  flex: 1; overflow-y: auto; padding: 6px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 5px; align-content: start;
+  scrollbar-width: thin; scrollbar-color: #444 #1a1a2e;
+}
+.anima-grid::-webkit-scrollbar { width: 6px; }
+.anima-grid::-webkit-scrollbar-track { background: #1a1a2e; }
+.anima-grid::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+
+/* card */
+.anima-card {
+  background: #27273a; border-radius: 6px; overflow: hidden;
+  cursor: pointer; border: 2px solid transparent;
+  position: relative; transition: transform .1s;
+}
+.anima-card:hover { transform: translateY(-1px); }
+.anima-card.sel { border-color: #6c8cff !important; }
+.anima-card img {
+  width: 100%; aspect-ratio: 1; object-fit: cover;
+  display: block; background: #1a1a2e;
+}
+.anima-card .card-body { padding: 3px 6px 5px; }
+.anima-card .card-tag {
+  color: #bbb; font-size: 10px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.anima-card .card-count { color: #777; font-size: 9px; }
+.anima-heart {
+  position: absolute; top: 2px; right: 2px; z-index: 2;
+  background: none; border: none; cursor: pointer;
+  font-size: 14px; padding: 1px 3px; line-height: 1;
+}
+.anima-check {
+  position: absolute; top: 2px; left: 2px; z-index: 2;
+  width: 14px; height: 14px; accent-color: #6c8cff; margin: 0;
+}
+/* scrollbar */
+.anima-scrollbar {
+  width: 12px; background: #1e1e30;
+  position: relative; flex-shrink: 0; cursor: pointer;
+}
+.anima-thumb {
+  position: absolute; left: 2px; right: 2px;
+  background: #555; border-radius: 4px;
+  min-height: 20px;
+}
+.anima-thumb:hover { background: #777; }
+/* footer */
+.anima-footer {
+  display: flex; align-items: center; justify-content: center;
+  gap: 8px; padding: 4px 6px; flex-shrink: 0;
+  background: #222236; border-top: 1px solid #333;
+}
+.anima-footer button {
+  padding: 3px 10px; background: #2a2a3e;
+  border: 1px solid #444; border-radius: 4px;
+  color: #ccc; cursor: pointer; font-size: 11px;
+}
+.anima-footer button:hover { background: #3a3a4e; }
+.anima-footer button:disabled { opacity: 0.4; cursor: default; }
+.anima-footer .page-info { color: #888; font-size: 11px; }
+/* states */
+.anima-state {
+  color: #888; padding: 40px; text-align: center;
+  font-size: 12px; grid-column: 1 / -1;
+}
+.anima-state.error { color: #e74c3c; }
+.anima-state button {
+  margin-top: 8px; padding: 5px 16px; background: #6c8cff;
+  border: none; border-radius: 5px; color: #fff; cursor: pointer;
+  font-size: 12px;
+}
+.anima-sel-badge {
+  background: #6c8cff; color: #fff; border-radius: 8px;
+  padding: 1px 7px; font-size: 10px; display: none;
+  margin-left: 2px;
+}
+.anima-sel-badge.on { display: inline; }
+`;
+  document.head.appendChild(s);
+}
+
+// ---------------------------------------------------------------
+// API helpers
+// ---------------------------------------------------------------
+function apiA(page, size, search, favOnly, favs) {
+  const p = new URLSearchParams();
+  p.set("page", page);
+  p.set("size", size);
+  if (search) p.set("search", search);
+  if (favOnly) p.set("favOnly", "1");
+  p.set("favs", JSON.stringify(favs));
+  return `/anima-browser/artists?${p}`;
+}
+function apiImg(id) {
+  return `/anima-browser/image/${encodeURIComponent(id)}`;
+}
+
+// ---------------------------------------------------------------
+// AnimaNodeUI  –  inline gallery overlay per node
+// ---------------------------------------------------------------
+class AnimaNodeUI {
+  constructor(node, widget) {
+    this.node = node;
+    this.widget = widget;
+    this.page = 1;
+    this.pageSize = 50;
+    this.searchQuery = "";
+    this.multi = false;
+    this.favOnly = false;
+    this.totalPages = 1;
+    this.ready = false;
+    this.destroyed = false;
+
+    this.favs = this._loadFavs();
+    this.selected = widget.value
+      ? widget.value.split("\n").filter(Boolean)
+      : [];
+
+    injectStyles();
+    this._build();
+    this._bind();
+    this._startSync();
+    this._init();
+  }
+
+  // ---- local-storage -------------------------------------------
+  _loadFavs() {
+    try { return JSON.parse(localStorage.getItem("anima-favs") || "[]"); }
+    catch { return []; }
+  }
+  _saveFavs() {
+    localStorage.setItem("anima-favs", JSON.stringify(this.favs));
+  }
+
+  // ---- DOM ----------------------------------------------------
+  _build() {
+    this.el = document.createElement("div");
+    this.el.className = "anima-node-overlay";
+
+    this.el.innerHTML = `
+      <div class="anima-node-inner">
+        <div class="anima-hdr">
+          <input class="anima-search" type="text" placeholder="Search...">
+          <button class="anima-random" title="Random">🎲</button>
+          <button class="anima-fav" title="Favourites">⭐</button>
+          <button class="anima-multi" title="Multi-select">☐</button>
+          <span class="anima-sel-badge"></span>
+          <span class="anima-total"></span>
+        </div>
+        <div class="anima-main">
+          <div class="anima-grid"></div>
+          <div class="anima-scrollbar"><div class="anima-thumb"></div></div>
+        </div>
+        <div class="anima-footer">
+          <button class="anima-prev">◀</button>
+          <span class="page-info">1 / 1</span>
+          <button class="anima-next">▶</button>
+        </div>
+      </div>`;
+
+    document.body.appendChild(this.el);
+
+    // element refs
+    this.$$ = (sel) => this.el.querySelector(sel);
+    this.$search = this.$$(".anima-search");
+    this.$grid = this.$$(".anima-grid");
+    this.$scrollbar = this.$$(".anima-scrollbar");
+    this.$thumb = this.$$(".anima-thumb");
+    this.$total = this.$$(".anima-total");
+    this.$pageInfo = this.$$(".page-info");
+    this.$prev = this.$$(".anima-prev");
+    this.$next = this.$$(".anima-next");
+    this.$favBtn = this.$$(".anima-fav");
+    this.$multiBtn = this.$$(".anima-multi");
+    this.$selBadge = this.$$(".anima-sel-badge");
+
+    this._updateBtns();
+  }
+
+  _updateBtns() {
+    this.$multiBtn.textContent = this.multi ? "☑" : "☐";
+    this.$multiBtn.classList.toggle("active", this.multi);
+    this.$selBadge.classList.toggle("on", this.multi);
+    this.$selBadge.textContent = `${this.selected.length}`;
+    this.$favBtn.classList.toggle("active", this.favOnly);
+  }
+
+  // ---- events -------------------------------------------------
+  _bind() {
+    // search
+    let t;
+    this.$search.addEventListener("input", () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        this.searchQuery = this.$search.value.trim();
+        this.page = 1;
+        this._loadPage();
+      }, 250);
+    });
+
+    this.$search.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") this.$search.blur();
+      e.stopPropagation();
+    });
+
+    // random
+    this.$$(".anima-random").addEventListener("click", () => {
+      if (this.totalPages > 1) {
+        this.page = Math.floor(Math.random() * this.totalPages) + 1;
+        this._loadPage();
+      }
+    });
+
+    // fav toggle
+    this.$favBtn.addEventListener("click", () => {
+      this.favOnly = !this.favOnly;
+      this.$favBtn.classList.toggle("active", this.favOnly);
+      this.page = 1;
+      this._loadPage();
+    });
+
+    // multi toggle
+    this.$multiBtn.addEventListener("click", () => {
+      this.multi = !this.multi;
+      this._updateBtns();
+      this._loadPage();
+    });
+
+    // pagination
+    this.$prev.addEventListener("click", () => {
+      if (this.page > 1) { this.page--; this._loadPage(); }
+    });
+    this.$next.addEventListener("click", () => {
+      if (this.page < this.totalPages) { this.page++; this._loadPage(); }
+    });
+
+    // grid delegation
+    this.$grid.addEventListener("click", (e) => {
+      const heart = e.target.closest(".anima-heart");
+      if (heart) {
+        e.stopPropagation();
+        this._toggleFav(heart.dataset.slug);
+        return;
+      }
+      const card = e.target.closest(".anima-card");
+      if (!card) return;
+      if (this.multi) {
+        this._toggleSelect(card.dataset.slug);
+      } else {
+        this._selectSingle(card.dataset.slug);
+      }
+    });
+
+    // scrollbar
+    this._scrollDragging = false;
+    const onDown = (e) => {
+      this._scrollDragging = true;
+      e.preventDefault();
+      this._scrollTo(e.clientY);
+    };
+    this.$thumb.addEventListener("mousedown", onDown);
+    this.$scrollbar.addEventListener("mousedown", (e) => {
+      if (e.target === this.$thumb) return;
+      this._scrollDragging = true;
+      this._scrollTo(e.clientY);
+    });
+    this._onMove = (e) => {
+      if (!this._scrollDragging) return;
+      this._scrollTo(e.clientY);
+    };
+    this._onUp = () => { this._scrollDragging = false; };
+    document.addEventListener("mousemove", this._onMove);
+    document.addEventListener("mouseup", this._onUp);
+
+    // keyboard
+    this._key = (e) => {
+      if (e.key === "Escape") this.$search.blur();
+    };
+    document.addEventListener("keydown", this._key);
+  }
+
+  _scrollTo(clientY) {
+    const r = this.$scrollbar.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientY - r.top) / r.height));
+    this.page = Math.max(1, Math.min(this.totalPages,
+      Math.round(ratio * (this.totalPages - 1)) + 1));
+    this._loadPage();
+  }
+
+  // ---- position sync -------------------------------------------
+  _startSync() {
+    const sync = () => {
+      if (this.destroyed) return;
+      if (!this.el) return;
+      try {
+        const canvas = app?.canvas;
+        if (!canvas?.canvas) { this._syncId = requestAnimationFrame(sync); return; }
+
+        const cr = canvas.canvas.getBoundingClientRect();
+        const ds = canvas.ds;
+        if (!ds) { this._syncId = requestAnimationFrame(sync); return; }
+
+        const left = cr.left + (this.node.pos[0] * ds.scale + ds.offset[0]);
+        const top  = cr.top  + (this.node.pos[1] * ds.scale + ds.offset[1]);
+        const w    = this.node.size[0] * ds.scale;
+        const h    = this.node.size[1] * ds.scale;
+
+        const visible = (left + w > 0 && left < window.innerWidth &&
+                         top + h > 0 && top < window.innerHeight);
+
+        this.el.style.left   = left + "px";
+        this.el.style.top    = top + "px";
+        this.el.style.width  = w + "px";
+        this.el.style.height = h + "px";
+        this.el.style.display = visible ? "" : "none";
+      } catch (_) {}
+      this._syncId = requestAnimationFrame(sync);
+    };
+    this._syncId = requestAnimationFrame(sync);
+  }
+
+  // ---- data ---------------------------------------------------
+  async _init() {
+    try {
+      const r = await fetch("/anima-browser/status");
+      const s = await r.json();
+
+      if (!s.loaded) {
+        if (!s.loading) {
+          await fetch("/anima-browser/init", { method: "POST" });
+        }
+        this._showLoading("Downloading artist data...");
+        await this._poll();
+      }
+
+      this.ready = true;
+      this._loadPage();
+    } catch (err) {
+      this._showError(`Connect error: ${err.message}`);
+    }
+  }
+
+  async _poll() {
+    for (let i = 0; i < 120; i++) {
+      await new Promise((r) => setTimeout(r, 1000));
+      try {
+        const r = await fetch("/anima-browser/status");
+        const s = await r.json();
+        if (s.loaded) { this.ready = true; this._loadPage(); return; }
+        if (s.error) { this._showError(s.error); return; }
+        if (s.progress?.total > 0) {
+          this.$grid.innerHTML =
+            `<div class="anima-state">Downloading... ${s.progress.current.toLocaleString()} / ${s.progress.total.toLocaleString()}</div>`;
+        }
+      } catch (_) {}
+    }
+    this._showError("Timed out. Try again.");
+  }
+
+  // ---- page loading -------------------------------------------
+  async _loadPage() {
+    if (!this.ready) return;
+    this.$grid.innerHTML = `<div class="anima-state">Loading...</div>`;
+    this.$prev.disabled = true;
+    this.$next.disabled = true;
+
+    try {
+      const url = apiA(this.page, this.pageSize, this.searchQuery, this.favOnly, this.favs);
+      const r = await fetch(url);
+      const d = await r.json();
+
+      if (!d.loaded) {
+        this.$grid.innerHTML = `<div class="anima-state">Data loading... please wait</div>`;
+        this._init();
+        return;
+      }
+
+      this.totalPages = d.totalPages;
+      this.$total.textContent = `${d.total.toLocaleString()}`;
+      this.$pageInfo.textContent = `${this.page} / ${this.totalPages}`;
+      this.$prev.disabled = this.page <= 1;
+      this.$next.disabled = this.page >= this.totalPages;
+
+      this._render(d.artists);
+      this._updateThumb();
+    } catch (err) {
+      this._showError(`Load error: ${err.message}`);
+    }
+  }
+
+  _render(artists) {
+    this.$grid.innerHTML = "";
+
+    if (artists.length === 0) {
+      const msg = this.favOnly
+        ? "No favourites. Click 🤍 to add."
+        : this.searchQuery
+          ? `No results for "${this.searchQuery}"`
+          : "No artists";
+      this.$grid.innerHTML = `<div class="anima-state">${msg}</div>`;
+      return;
+    }
+
+    const sel = new Set(this.selected);
+    const fav = new Set(this.favs);
+    const f = document.createDocumentFragment();
+
+    for (const a of artists) {
+      const c = document.createElement("div");
+      c.className = "anima-card" + (sel.has(a.slug) ? " sel" : "");
+      c.dataset.slug = a.slug;
+
+      c.innerHTML = [
+        this.multi ? `<input type="checkbox" class="anima-check" ${sel.has(a.slug)?"checked":""}>` : "",
+        `<button class="anima-heart" data-slug="${a.slug}">${fav.has(a.slug)?"❤️":"🤍"}</button>`,
+        `<img src="${apiImg(a.imageId + '.webp')}" loading="lazy">`,
+        `<div class="card-body">`,
+          `<div class="card-tag" title="${this._esc(a.tag)}">${this._esc(a.tag)}</div>`,
+          `<div class="card-count">${a.postCount.toLocaleString()}</div>`,
+        `</div>`,
+      ].join("");
+
+      f.appendChild(c);
+    }
+    this.$grid.appendChild(f);
+  }
+
+  _esc(s) {
+    const e = document.createElement("span");
+    e.textContent = s;
+    return e.innerHTML;
+  }
+
+  _updateThumb() {
+    if (this.totalPages <= 1) {
+      this.$thumb.style.top = "0";
+      this.$thumb.style.height = "100%";
+      return;
+    }
+    const pct = Math.max(4, 100 / this.totalPages);
+    const ratio = (this.page - 1) / (this.totalPages - 1);
+    this.$thumb.style.top = `${ratio * (100 - pct)}%`;
+    this.$thumb.style.height = `${pct}%`;
+  }
+
+  _showLoading(msg) {
+    this.$grid.innerHTML = `<div class="anima-state">${msg}</div>`;
+    this.$total.textContent = "";
+    this.$pageInfo.textContent = "...";
+  }
+
+  _showError(msg) {
+    this.$grid.innerHTML = `<div class="anima-state error">${msg}<br><button>Retry</button></div>`;
+    this.$grid.querySelector("button").addEventListener("click", () => this._init());
+  }
+
+  // ---- selection / favourites ---------------------------------
+  _selectSingle(slug) {
+    this.selected = [slug];
+    this._writeWidget();
+  }
+
+  _toggleSelect(slug) {
+    const i = this.selected.indexOf(slug);
+    if (i >= 0) this.selected.splice(i, 1);
+    else this.selected.push(slug);
+    this._writeWidget();
+    this._updateBtns();
+    this._loadPage();
+  }
+
+  _toggleFav(slug) {
+    const i = this.favs.indexOf(slug);
+    if (i >= 0) this.favs.splice(i, 1);
+    else this.favs.push(slug);
+    this._saveFavs();
+
+    this.$grid.querySelectorAll(`.anima-heart[data-slug="${slug}"]`)
+      .forEach((h) => { h.textContent = this.favs.includes(slug) ? "❤️" : "🤍"; });
+
+    if (this.favOnly) this._loadPage();
+  }
+
+  _writeWidget() {
+    this.widget.value = this.selected.join("\n");
+  }
+
+  // ---- cleanup ------------------------------------------------
+  destroy() {
+    this.destroyed = true;
+    if (this._syncId) cancelAnimationFrame(this._syncId);
+    if (this._onMove) document.removeEventListener("mousemove", this._onMove);
+    if (this._onUp) document.removeEventListener("mouseup", this._onUp);
+    if (this._key) document.removeEventListener("keydown", this._key);
+    if (this.el?.parentNode) this.el.parentNode.removeChild(this.el);
+  }
+}
+
+// ---------------------------------------------------------------
+// Extension registration
+// ---------------------------------------------------------------
+function attachUI(node, widget) {
+  if (node._animaUI) return;
+  node._animaUI = new AnimaNodeUI(node, widget);
+}
+
+app.registerExtension({
+  name: "Comfy.AnimaBrowser",
+
+  async beforeRegisterNodeDef(nodeType, nodeData) {
+    if (nodeData.name !== "AnimaBrowser") return;
+
+    const orig = nodeType.prototype.onNodeCreated;
+    nodeType.prototype.onNodeCreated = function () {
+      const r = orig?.apply(this, arguments);
+
+      const widget = this.widgets?.find((w) => w.name === "artist_slug");
+      if (widget) {
+        // Delay so DOM is settled
+        setTimeout(() => attachUI(this, widget), 50);
+      }
+
+      return r;
+    };
+
+    // Set a reasonable node size
+    const origSetup = nodeType.prototype.onAdded;
+    nodeType.prototype.onAdded = function () {
+      const r = origSetup?.apply(this, arguments);
+      if (!this.size || this.size[0] < 400) {
+        this.size = [860, 680];
+      }
+      return r;
+    };
+
+    // Cleanup when node removed
+    const origRemoved = nodeType.prototype.onRemoved;
+    nodeType.prototype.onRemoved = function () {
+      if (this._animaUI) {
+        this._animaUI.destroy();
+        this._animaUI = null;
+      }
+      return origRemoved?.apply(this, arguments);
+    };
+  },
+});
