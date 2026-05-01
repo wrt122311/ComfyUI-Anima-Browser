@@ -132,6 +132,37 @@ function injectStyles() {
   margin-left: 2px;
 }
 .anima-sel-badge.on { display: inline; }
+/* modal */
+.anima-modal {
+  position: fixed; inset: 0; z-index: 99999;
+  display: none; align-items: center; justify-content: center;
+}
+.anima-modal.open { display: flex; }
+.anima-modal-backdrop {
+  position: absolute; inset: 0;
+  background: rgba(5, 8, 16, 0.72);
+}
+.anima-modal-panel {
+  position: relative; z-index: 1;
+  width: min(1320px, calc(100vw - 40px));
+  height: min(900px, calc(100vh - 40px));
+  border: 1px solid #3a3a52;
+  background: #141422;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.anima-modal-close {
+  position: absolute; right: 10px; top: 8px; z-index: 2;
+  width: 28px; height: 28px;
+  border: 1px solid #505070; border-radius: 6px;
+  background: #1f2034; color: #cfd3ff; cursor: pointer;
+  font-size: 16px; line-height: 1;
+}
+.anima-modal-close:hover { background: #2c2d46; }
+.anima-modal-body {
+  width: 100%; height: 100%;
+}
 `;
   document.head.appendChild(s);
 }
@@ -564,6 +595,58 @@ class AnimaNodeUI {
   }
 }
 
+class AnimaBrowserModal {
+  constructor(widget) {
+    this.widget = widget;
+    this._build();
+    this.ui = new AnimaNodeUI(this.$body, widget);
+    this._bind();
+  }
+
+  _build() {
+    this.root = document.createElement("div");
+    this.root.className = "anima-modal";
+    this.root.innerHTML = `
+      <div class="anima-modal-backdrop"></div>
+      <div class="anima-modal-panel">
+        <button class="anima-modal-close" title="Close">X</button>
+        <div class="anima-modal-body"></div>
+      </div>
+    `;
+    document.body.appendChild(this.root);
+    this.$body = this.root.querySelector(".anima-modal-body");
+    this.$backdrop = this.root.querySelector(".anima-modal-backdrop");
+    this.$close = this.root.querySelector(".anima-modal-close");
+  }
+
+  _bind() {
+    this._onEsc = (e) => {
+      if (e.key === "Escape") this.close();
+    };
+    this.$backdrop.addEventListener("click", () => this.close());
+    this.$close.addEventListener("click", () => this.close());
+  }
+
+  open() {
+    this.root.classList.add("open");
+    document.addEventListener("keydown", this._onEsc);
+    this.ui?._onGridResize();
+  }
+
+  close() {
+    this.root.classList.remove("open");
+    document.removeEventListener("keydown", this._onEsc);
+  }
+
+  destroy() {
+    this.close();
+    this.ui?.destroy();
+    this.ui = null;
+    this.root?.remove();
+    this.root = null;
+  }
+}
+
 // ---------------------------------------------------------------
 // Extension registration
 // ---------------------------------------------------------------
@@ -582,39 +665,22 @@ app.registerExtension({
         widget.computeSize = () => [0, -4];
       }
 
-      // Create the embedded browser container
-      const node = this;
-      const container = document.createElement("div");
-
-      this.addDOMWidget("anima_browser_ui", "div", container, {
-        serialize: false,
-        getValue:  () => "",
-        setValue:  () => {},
-        computeSize: (w) => [w, Math.max(200, node.size[1] - 58)],
-      });
-
-      this.size = [860, 660];
-
       if (widget) {
-        this._animaUI = new AnimaNodeUI(container, widget);
+        this.addWidget("button", "Open Browser", null, () => {
+          if (!this._animaModal) this._animaModal = new AnimaBrowserModal(widget);
+          this._animaModal.open();
+        });
       }
-    };
 
-    // Sync widget height when node is resized
-    nodeType.prototype.onResize = function() {
-      const domWidget = this.widgets?.find(w => w.name === "anima_browser_ui");
-      if (domWidget?.element) {
-        domWidget.element.style.height = Math.max(200, this.size[1] - 58) + "px";
-        this._animaUI?._onGridResize();
-      }
+      this.size = [360, 140];
     };
 
     // Cleanup when node removed
     const origRemoved = nodeType.prototype.onRemoved;
     nodeType.prototype.onRemoved = function () {
-      if (this._animaUI) {
-        this._animaUI.destroy();
-        this._animaUI = null;
+      if (this._animaModal) {
+        this._animaModal.destroy();
+        this._animaModal = null;
       }
       return origRemoved?.apply(this, arguments);
     };
