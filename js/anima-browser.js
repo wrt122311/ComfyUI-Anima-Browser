@@ -9,16 +9,10 @@ function injectStyles() {
   const s = document.createElement("style");
   s.id = STYLE_ID;
   s.textContent = `
-.anima-node-overlay {
-  position: fixed; z-index: 50; pointer-events: none;
-  overflow: hidden; font-family: sans-serif;
-  box-sizing: border-box;
-}
 .anima-node-inner {
   width: 100%; height: 100%; display: flex; flex-direction: column;
-  pointer-events: auto; background: #1a1a2e;
-  border: 1px solid #444; border-radius: 4px;
-  box-sizing: border-box; overflow: hidden;
+  background: #1a1a2e; box-sizing: border-box; overflow: hidden;
+  font-family: sans-serif;
 }
 /* header */
 .anima-hdr {
@@ -149,11 +143,11 @@ function apiImg(id) {
 }
 
 // ---------------------------------------------------------------
-// AnimaNodeUI  –  inline gallery overlay per node
+// AnimaNodeUI  –  embedded gallery inside node DOM widget
 // ---------------------------------------------------------------
 class AnimaNodeUI {
-  constructor(node, widget) {
-    this.node = node;
+  constructor(container, widget) {
+    this.container = container;
     this.widget = widget;
     this.page = 1;
     this.pageSize = 50;
@@ -162,7 +156,6 @@ class AnimaNodeUI {
     this.favOnly = false;
     this.totalPages = 1;
     this.ready = false;
-    this.destroyed = false;
 
     this.favs = this._loadFavs();
     this.selected = widget.value
@@ -172,7 +165,6 @@ class AnimaNodeUI {
     injectStyles();
     this._build();
     this._bind();
-    this._startSync();
     this._init();
   }
 
@@ -187,10 +179,7 @@ class AnimaNodeUI {
 
   // ---- DOM ----------------------------------------------------
   _build() {
-    this.el = document.createElement("div");
-    this.el.className = "anima-node-overlay";
-
-    this.el.innerHTML = `
+    this.container.innerHTML = `
       <div class="anima-node-inner">
         <div class="anima-hdr">
           <input class="anima-search" type="text" placeholder="Search...">
@@ -211,21 +200,19 @@ class AnimaNodeUI {
         </div>
       </div>`;
 
-    document.body.appendChild(this.el);
-
     // element refs
-    this.$$ = (sel) => this.el.querySelector(sel);
-    this.$search = this.$$(".anima-search");
-    this.$grid = this.$$(".anima-grid");
-    this.$scrollbar = this.$$(".anima-scrollbar");
-    this.$thumb = this.$$(".anima-thumb");
-    this.$total = this.$$(".anima-total");
-    this.$pageInfo = this.$$(".page-info");
-    this.$prev = this.$$(".anima-prev");
-    this.$next = this.$$(".anima-next");
-    this.$favBtn = this.$$(".anima-fav");
-    this.$multiBtn = this.$$(".anima-multi");
-    this.$selBadge = this.$$(".anima-sel-badge");
+    const $ = (sel) => this.container.querySelector(sel);
+    this.$search   = $(".anima-search");
+    this.$grid     = $(".anima-grid");
+    this.$scrollbar = $(".anima-scrollbar");
+    this.$thumb    = $(".anima-thumb");
+    this.$total    = $(".anima-total");
+    this.$pageInfo = $(".page-info");
+    this.$prev     = $(".anima-prev");
+    this.$next     = $(".anima-next");
+    this.$favBtn   = $(".anima-fav");
+    this.$multiBtn = $(".anima-multi");
+    this.$selBadge = $(".anima-sel-badge");
 
     this._updateBtns();
   }
@@ -240,6 +227,11 @@ class AnimaNodeUI {
 
   // ---- events -------------------------------------------------
   _bind() {
+    // prevent canvas from stealing events inside the widget
+    this.container.addEventListener("mousedown", e => e.stopPropagation());
+    this.container.addEventListener("pointerdown", e => e.stopPropagation());
+    this.container.addEventListener("wheel", e => e.stopPropagation(), { passive: false });
+
     // search
     let t;
     this.$search.addEventListener("input", () => {
@@ -257,7 +249,7 @@ class AnimaNodeUI {
     });
 
     // random
-    this.$$(".anima-random").addEventListener("click", () => {
+    this.container.querySelector(".anima-random").addEventListener("click", () => {
       if (this.totalPages > 1) {
         this.page = Math.floor(Math.random() * this.totalPages) + 1;
         this._loadPage();
@@ -306,30 +298,20 @@ class AnimaNodeUI {
 
     // scrollbar
     this._scrollDragging = false;
-    const onDown = (e) => {
+    this.$thumb.addEventListener("mousedown", (e) => {
       this._scrollDragging = true;
       e.preventDefault();
       this._scrollTo(e.clientY);
-    };
-    this.$thumb.addEventListener("mousedown", onDown);
+    });
     this.$scrollbar.addEventListener("mousedown", (e) => {
       if (e.target === this.$thumb) return;
       this._scrollDragging = true;
       this._scrollTo(e.clientY);
     });
-    this._onMove = (e) => {
-      if (!this._scrollDragging) return;
-      this._scrollTo(e.clientY);
-    };
-    this._onUp = () => { this._scrollDragging = false; };
+    this._onMove = (e) => { if (this._scrollDragging) this._scrollTo(e.clientY); };
+    this._onUp   = () => { this._scrollDragging = false; };
     document.addEventListener("mousemove", this._onMove);
-    document.addEventListener("mouseup", this._onUp);
-
-    // keyboard
-    this._key = (e) => {
-      if (e.key === "Escape") this.$search.blur();
-    };
-    document.addEventListener("keydown", this._key);
+    document.addEventListener("mouseup",   this._onUp);
   }
 
   _scrollTo(clientY) {
@@ -338,43 +320,6 @@ class AnimaNodeUI {
     this.page = Math.max(1, Math.min(this.totalPages,
       Math.round(ratio * (this.totalPages - 1)) + 1));
     this._loadPage();
-  }
-
-  // ---- position sync -------------------------------------------
-  _startSync() {
-    const sync = () => {
-      if (this.destroyed) return;
-      if (!this.el) return;
-      try {
-        const canvas = app?.canvas;
-        if (!canvas?.canvas) { this._syncId = requestAnimationFrame(sync); return; }
-
-        const cr = canvas.canvas.getBoundingClientRect();
-        const ds = canvas.ds;
-        if (!ds) { this._syncId = requestAnimationFrame(sync); return; }
-
-        const cw = canvas.canvas.width;
-        const ch = canvas.canvas.height;
-        const rx = cr.width / (cw || 1);
-        const ry = cr.height / (ch || 1);
-
-        const left = cr.left + (this.node.pos[0] * ds.scale + ds.offset[0]) * rx;
-        const top  = cr.top  + (this.node.pos[1] * ds.scale + ds.offset[1]) * ry;
-        const w    = this.node.size[0] * ds.scale * rx;
-        const h    = this.node.size[1] * ds.scale * ry;
-
-        const visible = (left + w > 0 && left < window.innerWidth &&
-                         top + h > 0 && top < window.innerHeight);
-
-        this.el.style.left   = left + "px";
-        this.el.style.top    = top + "px";
-        this.el.style.width  = w + "px";
-        this.el.style.height = h + "px";
-        this.el.style.display = visible ? "" : "none";
-      } catch (_) {}
-      this._syncId = requestAnimationFrame(sync);
-    };
-    this._syncId = requestAnimationFrame(sync);
   }
 
   // ---- data ---------------------------------------------------
@@ -405,7 +350,7 @@ class AnimaNodeUI {
         const r = await fetch("/anima-browser/status");
         const s = await r.json();
         if (s.loaded) { this.ready = true; this._loadPage(); return; }
-        if (s.error) { this._showError(s.error); return; }
+        if (s.error)  { this._showError(s.error); return; }
         if (s.progress?.total > 0) {
           this.$grid.innerHTML =
             `<div class="anima-state">Downloading... ${s.progress.current.toLocaleString()} / ${s.progress.total.toLocaleString()}</div>`;
@@ -545,50 +490,44 @@ class AnimaNodeUI {
 
   // ---- cleanup ------------------------------------------------
   destroy() {
-    this.destroyed = true;
-    if (this._syncId) cancelAnimationFrame(this._syncId);
     if (this._onMove) document.removeEventListener("mousemove", this._onMove);
-    if (this._onUp) document.removeEventListener("mouseup", this._onUp);
-    if (this._key) document.removeEventListener("keydown", this._key);
-    if (this.el?.parentNode) this.el.parentNode.removeChild(this.el);
+    if (this._onUp)   document.removeEventListener("mouseup",   this._onUp);
   }
 }
 
 // ---------------------------------------------------------------
 // Extension registration
 // ---------------------------------------------------------------
-function attachUI(node, widget) {
-  if (node._animaUI) return;
-  node._animaUI = new AnimaNodeUI(node, widget);
-}
-
 app.registerExtension({
   name: "Comfy.AnimaBrowser",
 
   async beforeRegisterNodeDef(nodeType, nodeData) {
     if (nodeData.name !== "AnimaBrowser") return;
 
-    const orig = nodeType.prototype.onNodeCreated;
     nodeType.prototype.onNodeCreated = function () {
-      const r = orig?.apply(this, arguments);
+      injectStyles();
 
+      // Hide the raw text widget — keep it for serialization only
       const widget = this.widgets?.find((w) => w.name === "artist_slug");
       if (widget) {
-        // Delay so DOM is settled
-        setTimeout(() => attachUI(this, widget), 50);
+        widget.computeSize = () => [0, -4];
       }
 
-      return r;
-    };
+      // Create the embedded browser container
+      const container = document.createElement("div");
+      container.style.cssText = "width:100%;height:100%;";
 
-    // Set a reasonable node size
-    const origSetup = nodeType.prototype.onAdded;
-    nodeType.prototype.onAdded = function () {
-      const r = origSetup?.apply(this, arguments);
-      if (!this.size || this.size[0] < 400) {
-        this.size = [860, 680];
+      this.addDOMWidget("anima_browser_ui", "div", container, {
+        serialize: false,
+        getValue:  () => "",
+        setValue:  () => {},
+      });
+
+      this.size = [860, 680];
+
+      if (widget) {
+        this._animaUI = new AnimaNodeUI(container, widget);
       }
-      return r;
     };
 
     // Cleanup when node removed
