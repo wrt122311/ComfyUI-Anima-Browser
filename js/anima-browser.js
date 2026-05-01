@@ -1,4 +1,5 @@
 import { app } from "../../scripts/app.js";
+import { calculateVisiblePageSize } from "./layout.js";
 
 // ---------------------------------------------------------------
 // CSS (injected once)
@@ -327,6 +328,19 @@ class AnimaNodeUI {
 
     // keep thumb in sync as grid scrolls
     this.$grid.addEventListener("scroll", () => this._updateThumb(), { passive: true });
+
+    if ("ResizeObserver" in window) {
+      this._resizeObserver = new ResizeObserver(() => this._onGridResize());
+      this._resizeObserver.observe(this.$grid);
+    }
+    this._lastGridSizeKey = this._getGridSizeKey();
+    this._layoutWatch = window.setInterval(() => {
+      const key = this._getGridSizeKey();
+      if (key !== this._lastGridSizeKey) {
+        this._lastGridSizeKey = key;
+        this._onGridResize();
+      }
+    }, 250);
   }
 
   // ---- data ---------------------------------------------------
@@ -344,6 +358,7 @@ class AnimaNodeUI {
       }
 
       this.ready = true;
+      this._syncPageSize({ preservePosition: false });
       this._loadPage();
     } catch (err) {
       this._showError(`Connect error: ${err.message}`);
@@ -370,6 +385,7 @@ class AnimaNodeUI {
   // ---- page loading -------------------------------------------
   async _loadPage() {
     if (!this.ready) return;
+    this._syncPageSize();
     this.$grid.innerHTML = `<div class="anima-state">Loading...</div>`;
     this.$prev.disabled = true;
     this.$next.disabled = true;
@@ -397,6 +413,45 @@ class AnimaNodeUI {
     } catch (err) {
       this._showError(`Load error: ${err.message}`);
     }
+  }
+
+  _measurePageSize() {
+    const r = this.$grid.getBoundingClientRect();
+    const width = r.width || this.$grid.clientWidth || 0;
+    const height = r.height || this.$grid.clientHeight || 0;
+    return calculateVisiblePageSize(width, height);
+  }
+
+  _getGridSizeKey() {
+    const r = this.$grid.getBoundingClientRect();
+    return `${Math.round(r.width)}x${Math.round(r.height)}`;
+  }
+
+  _syncPageSize({ preservePosition = true } = {}) {
+    const nextSize = this._measurePageSize();
+    if (nextSize === this.pageSize) return false;
+
+    const firstVisible = (this.page - 1) * this.pageSize;
+    this.pageSize = nextSize;
+    if (preservePosition) {
+      this.page = Math.floor(firstVisible / this.pageSize) + 1;
+    }
+    return true;
+  }
+
+  _onGridResize() {
+    clearTimeout(this._layoutTimer);
+    this._layoutTimer = setTimeout(() => {
+      if (!this.ready) {
+        this._syncPageSize({ preservePosition: false });
+        return;
+      }
+      if (this._syncPageSize()) {
+        this._loadPage();
+      } else {
+        this._updateThumb();
+      }
+    }, 120);
   }
 
   _render(artists) {
@@ -501,6 +556,9 @@ class AnimaNodeUI {
 
   // ---- cleanup ------------------------------------------------
   destroy() {
+    clearTimeout(this._layoutTimer);
+    if (this._layoutWatch) window.clearInterval(this._layoutWatch);
+    if (this._resizeObserver) this._resizeObserver.disconnect();
     if (this._onMove) document.removeEventListener("mousemove", this._onMove);
     if (this._onUp)   document.removeEventListener("mouseup",   this._onUp);
   }
@@ -547,6 +605,7 @@ app.registerExtension({
       const domWidget = this.widgets?.find(w => w.name === "anima_browser_ui");
       if (domWidget?.element) {
         domWidget.element.style.height = Math.max(200, this.size[1] - 58) + "px";
+        this._animaUI?._onGridResize();
       }
     };
 

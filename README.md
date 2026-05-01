@@ -12,6 +12,7 @@
 - **滚动条** — 右侧可拖拽进度条，快速定位
 - **懒加载** — 启动仅下载 2KB 索引，打开节点后才加载数据
 - **本地缓存** — 数据和图片自动缓存，切换工作流无需重新下载
+- **自适应显示** — 根据节点大小和 ComfyUI 界面缩放自动调整每页图片数量，避免图片被裁切或显示不完整
 
 ## 安装
 
@@ -30,6 +31,10 @@ git clone https://github.com/wrt122311/ComfyUI-Anima-Browser.git
 4. 节点输出 `artist:slug` 格式字符串，连接至 prompt 节点使用
 5. 开启多选时，多个标签以换行分隔输出
 
+## 图片显示说明
+
+节点会实时检测内部画廊的可视区域大小，并自动计算当前页面应该加载多少张图片。缩放 ComfyUI 画布或调整节点尺寸时，画廊会重新分页，只显示能够完整放入界面的图片卡片，避免底部图片只露出一部分或被界面裁切。
+
 ## 依赖
 
 - `requests` — 用于下载数据（ComfyUI 环境通常已预装）
@@ -42,7 +47,9 @@ ComfyUI-Anima-Browser/
 ├── nodes.py              # 节点类定义
 ├── data_manager.py       # CDN 数据下载 + 本地缓存
 ├── js/
-│   └── anima-browser.js  # 前端画廊 UI
+│   ├── anima-browser.js  # 前端画廊 UI
+│   ├── layout.js         # 自适应图片数量计算
+│   └── layout.test.mjs   # 布局计算测试
 ├── requirements.txt
 └── cache/                # 运行时自动创建
     ├── manifest.json
