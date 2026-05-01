@@ -521,6 +521,7 @@ class AnimaNodeUI {
       f.appendChild(c);
     }
     this.$grid.appendChild(f);
+    this._syncSelectionStateInGrid();
   }
 
   _esc(s) {
@@ -555,9 +556,21 @@ class AnimaNodeUI {
   }
 
   // ---- selection / favourites ---------------------------------
+  _syncSelectionStateInGrid() {
+    const selectedSet = new Set(this.selected);
+    this.$grid.querySelectorAll(".anima-card").forEach((card) => {
+      const isSelected = selectedSet.has(card.dataset.slug);
+      card.classList.toggle("sel", isSelected);
+      const checkbox = card.querySelector(".anima-check");
+      if (checkbox) checkbox.checked = isSelected;
+    });
+  }
+
   _selectSingle(slug) {
     this.selected = [slug];
     this._writeWidget();
+    this._updateBtns();
+    this._syncSelectionStateInGrid();
   }
 
   _toggleSelect(slug) {
@@ -566,7 +579,7 @@ class AnimaNodeUI {
     else this.selected.push(slug);
     this._writeWidget();
     this._updateBtns();
-    this._loadPage();
+    this._syncSelectionStateInGrid();
   }
 
   _toggleFav(slug) {
