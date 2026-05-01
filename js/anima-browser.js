@@ -68,7 +68,7 @@ function injectStyles() {
 .anima-card:hover { transform: translateY(-1px); }
 .anima-card.sel { border-color: #6c8cff !important; }
 .anima-card img {
-  width: 100%; aspect-ratio: 1; object-fit: contain;
+  width: 100%; height: auto; object-fit: contain;
   display: block; background: #1a1a2e;
 }
 .anima-card .card-body { padding: 3px 6px 5px; }
@@ -353,10 +353,15 @@ class AnimaNodeUI {
         const ds = canvas.ds;
         if (!ds) { this._syncId = requestAnimationFrame(sync); return; }
 
-        const left = cr.left + cr.width / 2 + (this.node.pos[0] + ds.offset[0]) * ds.scale;
-        const top  = cr.top + cr.height / 2 + (this.node.pos[1] + ds.offset[1]) * ds.scale;
-        const w    = this.node.size[0] * ds.scale;
-        const h    = this.node.size[1] * ds.scale;
+        const cw = canvas.canvas.width;
+        const ch = canvas.canvas.height;
+        const rx = cr.width / (cw || 1);
+        const ry = cr.height / (ch || 1);
+
+        const left = cr.left + cr.width / 2 + (this.node.pos[0] + ds.offset[0]) * ds.scale * rx;
+        const top  = cr.top + cr.height / 2 + (this.node.pos[1] + ds.offset[1]) * ds.scale * ry;
+        const w    = this.node.size[0] * ds.scale * rx;
+        const h    = this.node.size[1] * ds.scale * ry;
 
         const visible = (left + w > 0 && left < window.innerWidth &&
                          top + h > 0 && top < window.innerHeight);
