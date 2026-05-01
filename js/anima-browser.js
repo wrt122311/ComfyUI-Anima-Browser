@@ -3,7 +3,7 @@ import { app } from "../../scripts/app.js";
 // ---------------------------------------------------------------
 // CSS (injected once)
 // ---------------------------------------------------------------
-const STYLE_ID = "anima-node-styles";
+const STYLE_ID = "anima-node-styles-v3";
 function injectStyles() {
   if (document.getElementById(STYLE_ID)) return;
   const s = document.createElement("style");
@@ -61,14 +61,15 @@ function injectStyles() {
 }
 .anima-card:hover { transform: translateY(-1px); }
 .anima-card.sel { border-color: #6c8cff !important; background: #1e1e40; }
-.anima-card.sel::after {
-  content: "✓";
-  position: absolute; bottom: 0; right: 0; z-index: 3;
+.anima-sel-mark {
+  display: none;
+  position: absolute; bottom: 0; right: 0; z-index: 5;
   padding: 1px 5px 2px; background: #6c8cff;
   border-top-left-radius: 5px;
   color: #fff; font-size: 11px; font-weight: bold;
   pointer-events: none;
 }
+.anima-card.sel .anima-sel-mark { display: block; }
 .anima-card img {
   width: 100%; aspect-ratio: 1 / 1; object-fit: contain;
   display: block; background: #1a1a2e;
@@ -422,6 +423,7 @@ class AnimaNodeUI {
 
       c.innerHTML = [
         this.multi ? `<input type="checkbox" class="anima-check" ${sel.has(a.slug)?"checked":""}>` : "",
+        `<div class="anima-sel-mark">✓</div>`,
         `<button class="anima-heart" data-slug="${a.slug}">${fav.has(a.slug)?"❤️":"🤍"}</button>`,
         `<img src="${apiImg(a.imageId + '.webp')}" loading="lazy">`,
         `<div class="card-body">`,
@@ -537,6 +539,14 @@ app.registerExtension({
 
       if (widget) {
         this._animaUI = new AnimaNodeUI(container, widget);
+      }
+    };
+
+    // Sync widget height when node is resized
+    nodeType.prototype.onResize = function() {
+      const domWidget = this.widgets?.find(w => w.name === "anima_browser_ui");
+      if (domWidget?.element) {
+        domWidget.element.style.height = Math.max(200, this.size[1] - 58) + "px";
       }
     };
 
