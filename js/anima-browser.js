@@ -276,8 +276,8 @@ class AnimaNodeUI {
 
   _updateResponsiveColumns() {
     const width = Math.max(260, this.container.clientWidth || 260);
-    // target card width ~270px (makes image area 4x larger compared to 135px)
-    const cols = Math.max(1, Math.floor((width - 24) / 270));
+    // target card width ~540px (makes image area 2x larger compared to 270px)
+    const cols = Math.max(1, Math.floor((width - 24) / 540));
     this.$grid.style.setProperty("--anima-cols", String(cols));
   }
 
