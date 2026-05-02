@@ -525,7 +525,7 @@ class AnimaNodeUI {
         this.multi ? `<input type="checkbox" class="anima-check" ${sel.has(a.slug)?"checked":""}>` : "",
         `<div class="anima-sel-mark">✓</div>`,
         `<button class="anima-heart" data-slug="${a.slug}">${fav.has(a.slug)?"❤️":"🤍"}</button>`,
-        `<img src="${apiImg(a.imageId + '.webp')}" loading="lazy">`,
+        `<img src="${apiImg(a.imageId + '.webp')}">`,
         `<div class="card-body">`,
           `<div class="card-tag" title="${this._esc(a.tag)}">${this._esc(a.tag)}</div>`,
           `<div class="card-count">${a.postCount.toLocaleString()}</div>`,
