@@ -1,5 +1,5 @@
 import { app } from "../../scripts/app.js";
-import { calculateVisiblePageSize } from "./layout.js";
+// import { calculateVisiblePageSize } from "./layout.js";
 
 // ---------------------------------------------------------------
 // CSS (injected once)
@@ -196,7 +196,7 @@ class AnimaNodeUI {
     this.container = container;
     this.widget = widget;
     this.page = 1;
-    this.pageSize = 50;
+    this.pageSize = 100;
     this.searchQuery = "";
     this.multi = false;
     this.favOnly = false;
@@ -493,27 +493,14 @@ class AnimaNodeUI {
     }
   }
 
-  _measurePageSize() {
-    const r = this.$grid.getBoundingClientRect();
-    const width = r.width || this.$grid.clientWidth || 0;
-    const height = r.height || this.$grid.clientHeight || 0;
-    return calculateVisiblePageSize(width, height);
-  }
-
   _getGridSizeKey() {
     const r = this.$grid.getBoundingClientRect();
     return `${Math.round(r.width)}x${Math.round(r.height)}`;
   }
 
   _syncPageSize({ preservePosition = true } = {}) {
-    const nextSize = this._measurePageSize();
-    if (nextSize === this.pageSize) return false;
-
-    const firstVisible = (this.page - 1) * this.pageSize;
-    this.pageSize = nextSize;
-    if (preservePosition) {
-      this.page = Math.floor(firstVisible / this.pageSize) + 1;
-    }
+    if (this.pageSize === 100) return false;
+    this.pageSize = 100;
     return true;
   }
 
@@ -521,13 +508,7 @@ class AnimaNodeUI {
     clearTimeout(this._layoutTimer);
     this._layoutTimer = setTimeout(() => {
       this._updateResponsiveColumns();
-      if (!this.ready) {
-        this._syncPageSize({ preservePosition: false });
-        return;
-      }
-      if (this._syncPageSize()) {
-        this._loadPage();
-      } else {
+      if (this.ready) {
         this._updateThumb();
       }
     }, 120);
