@@ -17,12 +17,12 @@ function injectStyles() {
 }
 /* header */
 .anima-hdr {
-  display: flex; gap: 5px; align-items: center;
+  display: flex; gap: 5px; align-items: center; flex-wrap: wrap;
   padding: 5px 6px; flex-shrink: 0;
   background: #222236; border-bottom: 1px solid #333;
 }
 .anima-hdr input {
-  flex:1; min-width: 0; padding: 5px 10px;
+  flex:1; min-width: 60px; padding: 5px 10px;
   background: #2a2a3e; border:1px solid #444; border-radius: 5px;
   color: #ccc; font-size: 12px; outline: none;
 }
@@ -39,20 +39,25 @@ function injectStyles() {
   color: #888; font-size: 11px; white-space: nowrap;
   min-width: 0; overflow: hidden; text-overflow: ellipsis;
 }
+/* progress */
+.anima-progress-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 6px; flex-shrink: 0; background: #1a1a2e; display: none;
+}
+.anima-progress { width: 100%; height: 8px; }
+.anima-progress-lbl { font-size: 11px; color: #888; }
 /* main */
 .anima-main {
   display: flex; flex: 1; overflow: hidden; min-height: 0;
 }
 .anima-grid {
-  flex: 1; overflow: auto; padding: 6px;
+  flex: 1; overflow: auto; padding: 6px; min-height: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
+  grid-template-columns: repeat(var(--anima-cols, 2), minmax(0, 1fr));
   gap: 5px; align-content: start;
-  scrollbar-width: thin; scrollbar-color: #444 #1a1a2e;
+  scrollbar-width: none; /* hide standard scrollbar */
 }
-.anima-grid::-webkit-scrollbar { width: 6px; }
-.anima-grid::-webkit-scrollbar-track { background: #1a1a2e; }
-.anima-grid::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+.anima-grid::-webkit-scrollbar { display: none; }
 
 /* card */
 .anima-card {
@@ -232,6 +237,10 @@ class AnimaNodeUI {
           <span class="anima-sel-badge"></span>
           <span class="anima-total"></span>
         </div>
+        <div class="anima-progress-row">
+          <progress class="anima-progress" max="100" value="0"></progress>
+          <span class="anima-progress-lbl">0%</span>
+        </div>
         <div class="anima-main">
           <div class="anima-grid"></div>
           <div class="anima-scrollbar"><div class="anima-thumb"></div></div>
@@ -256,8 +265,18 @@ class AnimaNodeUI {
     this.$favBtn   = $(".anima-fav");
     this.$multiBtn = $(".anima-multi");
     this.$selBadge = $(".anima-sel-badge");
+    this.$progRow  = $(".anima-progress-row");
+    this.$progBar  = $(".anima-progress");
+    this.$progLbl  = $(".anima-progress-lbl");
 
     this._updateBtns();
+  }
+
+  _updateResponsiveColumns() {
+    const width = Math.max(260, this.container.clientWidth || 260);
+    // target card width ~130px
+    const cols = Math.max(1, Math.floor((width - 24) / 135));
+    this.$grid.style.setProperty("--anima-cols", String(cols));
   }
 
   _updateBtns() {
@@ -399,19 +418,33 @@ class AnimaNodeUI {
   }
 
   async _poll() {
+    this.$progRow.style.display = "flex";
     for (let i = 0; i < 120; i++) {
       await new Promise((r) => setTimeout(r, 1000));
       try {
         const r = await fetch("/anima-browser/status");
         const s = await r.json();
-        if (s.loaded) { this.ready = true; this._loadPage(); return; }
-        if (s.error)  { this._showError(s.error); return; }
+        if (s.loaded) { 
+          this.ready = true; 
+          this.$progRow.style.display = "none";
+          this._loadPage(); 
+          return; 
+        }
+        if (s.error)  { 
+          this.$progRow.style.display = "none";
+          this._showError(s.error); 
+          return; 
+        }
         if (s.progress?.total > 0) {
+          const pct = Math.round((s.progress.current / s.progress.total) * 100);
+          this.$progBar.value = pct;
+          this.$progLbl.textContent = `${pct}%`;
           this.$grid.innerHTML =
             `<div class="anima-state">Downloading... ${s.progress.current.toLocaleString()} / ${s.progress.total.toLocaleString()}</div>`;
         }
       } catch (_) {}
     }
+    this.$progRow.style.display = "none";
     this._showError("Timed out. Try again.");
   }
 
@@ -487,6 +520,7 @@ class AnimaNodeUI {
   _onGridResize() {
     clearTimeout(this._layoutTimer);
     this._layoutTimer = setTimeout(() => {
+      this._updateResponsiveColumns();
       if (!this.ready) {
         this._syncPageSize({ preservePosition: false });
         return;
@@ -623,58 +657,6 @@ class AnimaNodeUI {
   }
 }
 
-class AnimaBrowserModal {
-  constructor(widget) {
-    this.widget = widget;
-    this._build();
-    this.ui = new AnimaNodeUI(this.$body, widget);
-    this._bind();
-  }
-
-  _build() {
-    this.root = document.createElement("div");
-    this.root.className = "anima-modal";
-    this.root.innerHTML = `
-      <div class="anima-modal-backdrop"></div>
-      <div class="anima-modal-panel">
-        <button class="anima-modal-close" title="Close">X</button>
-        <div class="anima-modal-body"></div>
-      </div>
-    `;
-    document.body.appendChild(this.root);
-    this.$body = this.root.querySelector(".anima-modal-body");
-    this.$backdrop = this.root.querySelector(".anima-modal-backdrop");
-    this.$close = this.root.querySelector(".anima-modal-close");
-  }
-
-  _bind() {
-    this._onEsc = (e) => {
-      if (e.key === "Escape") this.close();
-    };
-    this.$backdrop.addEventListener("click", () => this.close());
-    this.$close.addEventListener("click", () => this.close());
-  }
-
-  open() {
-    this.root.classList.add("open");
-    document.addEventListener("keydown", this._onEsc);
-    this.ui?._onGridResize();
-  }
-
-  close() {
-    this.root.classList.remove("open");
-    document.removeEventListener("keydown", this._onEsc);
-  }
-
-  destroy() {
-    this.close();
-    this.ui?.destroy();
-    this.ui = null;
-    this.root?.remove();
-    this.root = null;
-  }
-}
-
 // ---------------------------------------------------------------
 // Extension registration
 // ---------------------------------------------------------------
@@ -694,21 +676,29 @@ app.registerExtension({
       }
 
       if (widget) {
-        this.addWidget("button", "Open Browser", null, () => {
-          if (!this._animaModal) this._animaModal = new AnimaBrowserModal(widget);
-          this._animaModal.open();
+        const wrap = document.createElement("div");
+        wrap.style.width = "100%";
+        wrap.style.height = "100%";
+        wrap.style.boxSizing = "border-box";
+        
+        this._animaUI = new AnimaNodeUI(wrap, widget);
+
+        this.addDOMWidget("anima_browser", "anima_browser", wrap, {
+          getMinHeight: () => 390,
+          getMaxHeight: () => 9999,
+          getHeight: () => 430,
         });
       }
 
-      this.size = [360, 140];
+      this.size = [360, 480];
     };
 
     // Cleanup when node removed
     const origRemoved = nodeType.prototype.onRemoved;
     nodeType.prototype.onRemoved = function () {
-      if (this._animaModal) {
-        this._animaModal.destroy();
-        this._animaModal = null;
+      if (this._animaUI) {
+        this._animaUI.destroy();
+        this._animaUI = null;
       }
       return origRemoved?.apply(this, arguments);
     };
