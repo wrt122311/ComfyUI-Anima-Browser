@@ -54,6 +54,7 @@ function injectStyles() {
   flex: 1; overflow: auto; padding: 6px; min-height: 0;
   display: grid;
   grid-template-columns: repeat(var(--anima-cols, 2), minmax(0, 1fr));
+  grid-auto-rows: max-content;
   gap: 5px; align-content: start;
   scrollbar-width: none; /* hide standard scrollbar */
 }
@@ -64,6 +65,7 @@ function injectStyles() {
   background: #27273a; border-radius: 6px; overflow: hidden;
   cursor: pointer; border: 2px solid transparent;
   position: relative; transition: transform .1s;
+  height: max-content;
 }
 .anima-card:hover { transform: translateY(-1px); }
 .anima-card.sel { border-color: #6c8cff !important; background: #1e1e40; }
