@@ -254,5 +254,10 @@ class AnimaDataManager:
     def progress(self):
         return self._progress
 
+    def get_tag_by_slug(self, slug):
+        if not hasattr(self, "_slug_to_tag"):
+            self._slug_to_tag = {a["slug"]: a["tag"] for a in self.artists}
+        return self._slug_to_tag.get(slug, "")
+
 
 data_manager = AnimaDataManager()
