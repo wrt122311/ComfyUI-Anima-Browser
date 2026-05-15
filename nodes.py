@@ -29,7 +29,8 @@ class AnimaBrowser:
             if slug:
                 tags.append(f"artist:{slug},")
                 actual_tag = data_manager.get_tag_by_slug(slug)
-                prompts.append(actual_tag if actual_tag else slug)
+                prompt_str = actual_tag if actual_tag else slug
+                prompts.append(f"{prompt_str},")
         return ("\n".join(tags), "\n".join(prompts))
 
 
